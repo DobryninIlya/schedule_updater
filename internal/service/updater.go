@@ -20,7 +20,36 @@ type Updater struct {
 	groupsParsed  []getRequest.GroupInfo
 	ScheduleSaved []SavedSchedule
 	timeout       time.Duration
+	n             *Notifier
 	ctx           context.Context
+}
+
+func (s *Updater) getNotifyList(group int, source string) []int64 {
+	sql := ""
+	if source == "vk" {
+		sql = "SELECT id_vk FROM users JOIN notify_clients AS n ON users.id_vk = n.destination_id WHERE n.schedule_change = true AND source=$2 AND groupp=$1" // Получение айди клиентов для рассылки в ВК
+	} else if source == "tg" {
+		sql = "SELECT tg_users.id FROM tg_users JOIN notify_clients AS n ON tg_users.id = n.destination_id WHERE n.schedule_change = true AND source=$2 AND groupid=$1"
+	} else {
+		log.Printf("Неизвестный источник рассылки.")
+		return nil
+	}
+	rows, err := s.conn.Query(sql, group, source)
+	defer rows.Close()
+	if err != nil {
+		log.Printf("Ошибка получения списков оповещения: %d", err)
+	}
+	var vkList []int64
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		if err != nil {
+			log.Printf("Ошибка обработки списков оповещения: %d", err)
+		}
+		vkList = append(vkList, id)
+
+	}
+	return vkList
 }
 
 func (s *Updater) getGroupsCount() int {
@@ -91,12 +120,14 @@ func (s *Updater) UpdateSchedule() {
 
 		shedUnmarshaled := getRequest.GetUnmarshaledSchedule(group.Schedule)
 		newShedMarshaled := getRequest.GetMarshaledSchedule(newSchedule)
+
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
 			log.Printf("Обновлено расписание группы %v", group.group)
 			time.Sleep(s.timeout)
-			// TODO добавить оповещатор для студентов здесь
-
+			tgList := s.getNotifyList(group.group, "tg")
+			vkList := s.getNotifyList(group.group, "vk")
+			s.n.NotifyByList(vkList, tgList, group.group)
 		}
 	}
 }
@@ -134,6 +165,8 @@ func (s *Updater) UpdateNewSchedule(data []getRequest.GroupInfo) { // Обнов
 		_, err := s.conn.Exec("INSERT INTO saved_timetable (groupp, date_update, shedule) VALUES ($1, Now(), $2)", group.Id, marshaledSchedule)
 		if err != nil {
 			_, err := s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.Group)
+			//var isUpdated bool
+			//err := s.conn.QueryRow("SELECT update_saved_timetable($2, 24293);", marshaledSchedule, group.Group).Scan(&isUpdated)
 			if err != nil {
 				log.Printf("Ошибка обновления расписания новых групп: %v, %v", group.Group, group.Id)
 				log.Printf(err.Error())
@@ -147,6 +180,9 @@ func (s *Updater) UpdateNewSchedule(data []getRequest.GroupInfo) { // Обнов
 
 func (s *Updater) Run() {
 	defer s.conn.Close()
+	tgList := s.getNotifyList(23546, "tg")
+	vkList := s.getNotifyList(23546, "vk")
+	s.n.NotifyByList(vkList, tgList, 24356)
 	parsedRes := getRequest.GetGroupsList()
 	s.ScheduleSaved = s.CollectGroups()
 	s.UpdateSchedule() // Обновляем группы, которыми пользовались недавно
@@ -165,5 +201,6 @@ func NewUpdater(ctx context.Context, timeout time.Duration, pgConfig pgx.ConnCon
 		conn:    conn,
 		ctx:     ctx,
 		timeout: timeout,
+		n:       NewNotifier(),
 	}
 }
