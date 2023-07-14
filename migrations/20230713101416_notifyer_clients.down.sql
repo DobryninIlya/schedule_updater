@@ -1,0 +1,1 @@
+DROP TABLE notify_clients;

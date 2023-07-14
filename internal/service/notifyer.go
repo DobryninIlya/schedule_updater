@@ -17,6 +17,29 @@ const vkSendMethod = "messages.send"
 const tgTemplate = "https://api.telegram.org/bot%s/%s%s"
 const tgSendMethod = "sendMessage?"
 const notifyMessage = "[Оповещение] Произошло обновление вашего учебного расписания."
+const tgButtons = `{
+"inline_keyboard": [
+[{
+"text": "Оповещения",
+"callback_data": "{\"button\":\"notifier_change_menu\",\"data\":\"notifier_change_menu\"}"
+}]
+]
+}`
+
+const vkButtons = `{
+"inline": true,
+"buttons": [
+[
+{
+"action": {
+"type": "text",
+"label": "Управление оповещениями"
+},
+"color": "default"
+}
+]
+]
+}`
 
 type Notifier struct {
 	vkToken    string
@@ -36,7 +59,7 @@ func NewNotifier() *Notifier {
 	}
 }
 
-func (s Notifier) SendMessageVKids(uId []int64, message string) {
+func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) {
 	if len(uId) == 0 {
 		log.Printf("Попытка отправить сообщение пустому списку оповещения")
 		return
@@ -47,7 +70,13 @@ func (s Notifier) SendMessageVKids(uId []int64, message string) {
 	}
 	ids = ids[:len(ids)-1]
 	randomInt := rand.Int31()
-	params := fmt.Sprintf("random_id=%v&peer_ids=%s&access_token=%s&disable_mentions=0&message=%s", randomInt, ids, s.vkToken, url.QueryEscape(message))
+	params := fmt.Sprintf("random_id=%v&peer_ids=%s&access_token=%s&disable_mentions=0&message=%s&keyboard=%s",
+		randomInt,
+		ids,
+		s.vkToken,
+		url.QueryEscape(message),
+		url.QueryEscape(buttons),
+	)
 	url := fmt.Sprintf(s.vkTemplate, vkSendMethod, params)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -56,12 +85,16 @@ func (s Notifier) SendMessageVKids(uId []int64, message string) {
 	defer resp.Body.Close()
 }
 
-func (s Notifier) SendMessageTG(uId int64, message string) {
+func (s Notifier) SendMessageTG(uId int64, message string, buttons string) {
 	if uId == 0 {
 		log.Printf("Попытка отправить сообщение некорректному айди")
 		return
 	}
-	params := fmt.Sprintf("chat_id=%v&text=%v", uId, url.QueryEscape(message))
+	params := fmt.Sprintf("chat_id=%v&text=%v&reply_markup=%s",
+		uId,
+		url.QueryEscape(message),
+		url.QueryEscape(buttons),
+	)
 	url := fmt.Sprintf(s.tgTemplate, s.tgToken, tgSendMethod, params)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -79,14 +112,14 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 			log.Println("Список оповещения слишком большой для разовой отправки в ВК")
 			return
 		}
-		s.SendMessageVKids(listVK, notifyMessage)
+		s.SendMessageVKids(listVK, notifyMessage, vkButtons)
 		log.Printf("Оповещена сообщением VK группа: %v", group)
 		s.wg.Done()
 	}()
 
 	go func() {
 		for _, uId := range listTG {
-			s.SendMessageTG(uId, notifyMessage)
+			s.SendMessageTG(uId, notifyMessage, tgButtons)
 		}
 		log.Printf("Оповещена сообщением TG группа: %v", group)
 		s.wg.Done()
