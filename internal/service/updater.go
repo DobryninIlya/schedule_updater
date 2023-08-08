@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -112,6 +113,7 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 }
 
 func (s *Updater) UpdateSchedule() {
+	wg := sync.WaitGroup{}
 	for _, group := range s.ScheduleSaved { // Итерация по устаревшему расписанию
 		newSchedule := getRequest.GetScheduleByGroup(getRequest.GroupInfo{
 			Id:    group.group,
@@ -120,14 +122,23 @@ func (s *Updater) UpdateSchedule() {
 
 		shedUnmarshaled := getRequest.GetUnmarshaledSchedule(group.Schedule)
 		newShedMarshaled := getRequest.GetMarshaledSchedule(newSchedule)
-
+		nullSchedule := getRequest.Schedule{}
+		if reflect.DeepEqual(newSchedule, nullSchedule) {
+			log.Printf("Полученное расписание у группы %v оказалось пустым. Обновление не произошло", group.group)
+			return
+		}
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
 			log.Printf("Обновлено расписание группы %v", group.group)
-			time.Sleep(s.timeout)
+			wg.Add(1)
+			go func() { // Блокируемся на заданный интервал, чтобы сервис не заблочил за множественные запросы и оповещаем по спискам
+				time.Sleep(s.timeout)
+				wg.Wait()
+			}()
 			tgList := s.getNotifyList(group.group, "tg")
 			vkList := s.getNotifyList(group.group, "vk")
 			s.n.NotifyByList(vkList, tgList, group.group)
+			wg.Wait()
 		}
 	}
 }
@@ -180,9 +191,6 @@ func (s *Updater) UpdateNewSchedule(data []getRequest.GroupInfo) { // Обнов
 
 func (s *Updater) Run() {
 	defer s.conn.Close()
-	tgList := s.getNotifyList(23546, "tg")
-	vkList := s.getNotifyList(23546, "vk")
-	s.n.NotifyByList(vkList, tgList, 24356)
 	parsedRes := getRequest.GetGroupsList()
 	s.ScheduleSaved = s.CollectGroups()
 	s.UpdateSchedule() // Обновляем группы, которыми пользовались недавно
