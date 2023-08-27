@@ -13,8 +13,10 @@ import (
 	"time"
 )
 
-var oldDateUpdate = time.Now().AddDate(-1, 0, 0) //last year
-var newDateUpdate = time.Now().AddDate(0, 0, -7) //week date ago
+const deltaDays = 1
+
+var oldDateUpdate = time.Now().AddDate(-1, 0, 0)         //last year
+var newDateUpdate = time.Now().AddDate(0, 0, -deltaDays) //week date ago
 
 type Updater struct {
 	conn          *pgx.Conn
