@@ -27,7 +27,7 @@ func NewApp() *App {
 
 func (a *App) run() {
 	//db.MakeConnection()
-	updater := service.NewUpdater(context.Background(), time.Minute*10, pgx.ConnConfig{
+	updater := service.NewUpdater(context.Background(), time.Minute*1, pgx.ConnConfig{
 		Host:     os.Getenv("DB_HOST"),
 		Port:     5432,
 		Database: os.Getenv("DB_NAME"),
