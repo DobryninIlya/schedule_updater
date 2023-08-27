@@ -40,14 +40,14 @@ func (s *Updater) getNotifyList(group int, source string) []int64 {
 	rows, err := s.conn.Query(sql, group, source)
 	defer rows.Close()
 	if err != nil {
-		log.Printf("Ошибка получения списков оповещения: %d", err)
+		log.Printf("Ошибка получения списков оповещения: %v", err)
 	}
 	var vkList []int64
 	for rows.Next() {
 		var id int64
 		err = rows.Scan(&id)
 		if err != nil {
-			log.Printf("Ошибка обработки списков оповещения: %d", err)
+			log.Printf("Ошибка обработки списков оповещения: %v", err)
 		}
 		vkList = append(vkList, id)
 
