@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
@@ -134,7 +135,13 @@ func (s *Updater) UpdateSchedule() {
 			continue
 		}
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
-			s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
+			//s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
+			sql := fmt.Sprintf("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
+			rows, err := s.conn.Query(sql)
+			if err != nil {
+				log.Printf("Ошибка обновления расписания: %v", err)
+			}
+			defer rows.Close()
 			log.Printf("Обновлено расписание группы %v", group.group)
 			wg.Add(1)
 			go func() { // Блокируемся на заданный интервал, чтобы сервис не заблочил за множественные запросы и оповещаем по спискам
