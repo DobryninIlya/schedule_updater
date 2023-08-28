@@ -82,6 +82,11 @@ func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) 
 	if err != nil {
 		log.Printf("Ошибка API. Отправка сообщений: %v", err)
 	}
+	body, err := io.ReadAll(resp.Body)
+	log.Printf("Результатат отправки в ВК: %v, %v", body, resp.Header)
+	if err != nil {
+		log.Printf("При этом возникла ошибка: %v", err)
+	}
 	defer resp.Body.Close()
 }
 
@@ -100,9 +105,12 @@ func (s Notifier) SendMessageTG(uId int64, message string, buttons string) {
 	if err != nil {
 		log.Printf("Ошибка API. Отправка сообщений: %v", err)
 	}
-	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
-	fmt.Println([]byte(body))
+	log.Printf("Результатат отправки в ВК: %v, %v", body, resp.Header)
+	if err != nil {
+		log.Printf("При этом возникла ошибка: %v", err)
+	}
+	defer resp.Body.Close()
 }
 
 func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
