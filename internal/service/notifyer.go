@@ -106,7 +106,7 @@ func (s Notifier) SendMessageTG(uId int64, message string, buttons string) {
 		log.Printf("Ошибка API. Отправка сообщений: %v", err)
 	}
 	body, err := io.ReadAll(resp.Body)
-	log.Printf("Результатат отправки в ВК: %v, %v", body, resp.Header)
+	log.Printf("Результатат отправки в ВК: %v", string(body))
 	if err != nil {
 		log.Printf("При этом возникла ошибка: %v", err)
 	}

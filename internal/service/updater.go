@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
@@ -118,10 +117,7 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 func (s *Updater) UpdateSchedule() {
 	wg := sync.WaitGroup{}
 	log.Printf("Групп к обновлению: %v", len(s.ScheduleSaved))
-	i := 0
 	for _, group := range s.ScheduleSaved { // Итерация по устаревшему расписанию
-		log.Printf("Итерация: %v", i)
-		i++
 		newSchedule := getRequest.GetScheduleByGroup(getRequest.GroupInfo{
 			Id:    group.group,
 			Group: "",
@@ -137,11 +133,10 @@ func (s *Updater) UpdateSchedule() {
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			//s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
 			sql := "UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2"
-			result, err := s.conn.Exec(sql, newShedMarshaled, group.group)
+			_, err := s.conn.Exec(sql, newShedMarshaled, group.group)
 			if err != nil {
 				log.Printf("Ошибка обновления расписания: %v", err)
 			}
-			fmt.Println(result)
 			log.Printf("Обновлено расписание группы %v", group.group)
 			wg.Add(1)
 			go func() { // Блокируемся на заданный интервал, чтобы сервис не заблочил за множественные запросы и оповещаем по спискам
