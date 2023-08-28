@@ -127,7 +127,7 @@ func (s *Updater) UpdateSchedule() {
 		nullSchedule := getRequest.Schedule{}
 		if reflect.DeepEqual(newSchedule, nullSchedule) {
 			log.Printf("Полученное расписание у группы %v оказалось пустым. Обновление не произошло", group.group)
-			return
+			continue
 		}
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
