@@ -118,6 +118,7 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 	go func() {
 		if len(listVK) >= 100 {
 			log.Println("Список оповещения слишком большой для разовой отправки в ВК")
+			s.wg.Done()
 			return
 		}
 		s.SendMessageVKids(listVK, notifyMessage, vkButtons)
