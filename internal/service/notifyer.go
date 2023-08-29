@@ -78,7 +78,6 @@ func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) 
 		url.QueryEscape(buttons),
 	)
 	url := fmt.Sprintf(s.vkTemplate, vkSendMethod, params)
-	log.Printf("URL %v", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Printf("Ошибка API. Отправка сообщений: %v", err)
