@@ -59,10 +59,10 @@ func NewNotifier() *Notifier {
 	}
 }
 
-func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) {
+func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) bool {
 	if len(uId) == 0 {
 		log.Printf("Попытка отправить сообщение пустому списку оповещения")
-		return
+		return false
 	}
 	ids := ""
 	for _, v := range uId {
@@ -89,12 +89,13 @@ func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) 
 		log.Printf("При этом возникла ошибка: %v", err)
 	}
 	defer resp.Body.Close()
+	return true
 }
 
-func (s Notifier) SendMessageTG(uId int64, message string, buttons string) {
+func (s Notifier) SendMessageTG(uId int64, message string, buttons string) bool {
 	if uId == 0 {
 		log.Printf("Попытка отправить сообщение некорректному айди")
-		return
+		return false
 	}
 	params := fmt.Sprintf("chat_id=%v&text=%v&reply_markup=%s",
 		uId,
@@ -112,6 +113,7 @@ func (s Notifier) SendMessageTG(uId int64, message string, buttons string) {
 		log.Printf("При этом возникла ошибка: %v", err)
 	}
 	defer resp.Body.Close()
+	return true
 }
 
 func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
@@ -122,14 +124,21 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 			s.wg.Done()
 			return
 		}
-		s.SendMessageVKids(listVK, notifyMessage, vkButtons)
+		result := s.SendMessageVKids(listVK, notifyMessage, vkButtons)
+		if !result {
+			log.Printf("Группа %v не оповещена", group)
+		}
 		log.Printf("Оповещена сообщением VK группа: %v", group)
 		s.wg.Done()
 	}()
 
 	go func() {
+		result := false
 		for _, uId := range listTG {
-			s.SendMessageTG(uId, notifyMessage, tgButtons)
+			result = s.SendMessageTG(uId, notifyMessage, tgButtons)
+		}
+		if !result {
+			log.Printf("Группа %v не оповещена", group)
 		}
 		log.Printf("Оповещена сообщением TG группа: %v", group)
 		s.wg.Done()
