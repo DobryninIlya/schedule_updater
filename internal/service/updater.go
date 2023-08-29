@@ -118,7 +118,7 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 func (s *Updater) UpdateSchedule() {
 	wg := sync.WaitGroup{}
 	log.Printf("Групп к обновлению: %v", len(s.ScheduleSaved))
-	for _, group := range s.ScheduleSaved { // Итерация по устаревшему расписанию
+	for i, group := range s.ScheduleSaved { // Итерация по устаревшему расписанию
 		newSchedule := getRequest.GetScheduleByGroup(getRequest.GroupInfo{
 			Id:    group.group,
 			Group: "",
@@ -151,6 +151,7 @@ func (s *Updater) UpdateSchedule() {
 			s.n.NotifyByList(vkList, tgList, group.group)
 			wg.Wait()
 		}
+		log.Printf("Осталось обновить: %v из %v", i, len(s.ScheduleSaved))
 	}
 }
 
