@@ -126,9 +126,10 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 		}
 		result := s.SendMessageVKids(listVK, notifyMessage, vkButtons)
 		if !result {
-			log.Printf("Группа %v не оповещена", group)
+			log.Printf("Группа %v не оповещена в ВК", group)
+		} else {
+			log.Printf("Оповещена сообщением VK группа: %v", group)
 		}
-		log.Printf("Оповещена сообщением VK группа: %v", group)
 		s.wg.Done()
 	}()
 
@@ -138,9 +139,10 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 			result = s.SendMessageTG(uId, notifyMessage, tgButtons)
 		}
 		if !result {
-			log.Printf("Группа %v не оповещена", group)
+			log.Printf("Группа %v не оповещена в ТГ", group)
+		} else {
+			log.Printf("Оповещена сообщением TG группа: %v", group)
 		}
-		log.Printf("Оповещена сообщением TG группа: %v", group)
 		s.wg.Done()
 	}()
 	s.wg.Wait()
