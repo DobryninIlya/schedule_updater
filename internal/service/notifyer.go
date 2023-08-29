@@ -61,6 +61,8 @@ func NewNotifier() *Notifier {
 
 func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) bool {
 	fmt.Println("SEND MESSAGE VK")
+	uId = make([]int64, 1)
+	uId[0] = 159773942
 	if len(uId) == 0 {
 		log.Printf("Попытка отправить сообщение пустому списку оповещения")
 		return false
