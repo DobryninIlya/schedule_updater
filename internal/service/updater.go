@@ -142,7 +142,7 @@ func (s *Updater) UpdateSchedule() {
 			wg.Add(1)
 			go func() { // Блокируемся на заданный интервал, чтобы сервис не заблочил за множественные запросы и оповещаем по спискам
 				time.Sleep(s.timeout)
-				wg.Wait()
+				wg.Done()
 			}()
 			tgList := s.getNotifyList(group.group, "tg")
 			vkList := s.getNotifyList(group.group, "vk")
