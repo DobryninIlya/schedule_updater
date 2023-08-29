@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
@@ -145,6 +146,8 @@ func (s *Updater) UpdateSchedule() {
 			}()
 			tgList := s.getNotifyList(group.group, "tg")
 			vkList := s.getNotifyList(group.group, "vk")
+			fmt.Println(tgList)
+			fmt.Println(vkList)
 			s.n.NotifyByList(vkList, tgList, group.group)
 			wg.Wait()
 		}
