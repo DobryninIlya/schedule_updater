@@ -16,7 +16,7 @@ const vkTemplate = "https://api.vk.com/method/%s?v=5.131&%s"
 const vkSendMethod = "messages.send"
 const tgTemplate = "https://api.telegram.org/bot%s/%s%s"
 const tgSendMethod = "sendMessage?"
-const notifyMessage = "[Оповещение] Произошло обновление вашего учебного расписания."
+const notifyMessage = "[Оповещение] Произошло обновление вашего учебного расписания.\n "
 const tgButtons = `{
 "inline_keyboard": [
 [{
@@ -95,7 +95,7 @@ func (s Notifier) SendMessageTG(uId int64, message string, buttons string) bool 
 		log.Printf("Попытка отправить сообщение некорректному айди")
 		return false
 	}
-	params := fmt.Sprintf("chat_id=%v&text=%v&reply_markup=%s",
+	params := fmt.Sprintf("chat_id=%v&text=%v&reply_markup=%s&parse_mode=markdown",
 		uId,
 		url.QueryEscape(message),
 		url.QueryEscape(buttons),
@@ -113,7 +113,7 @@ func (s Notifier) SendMessageTG(uId int64, message string, buttons string) bool 
 	return true
 }
 
-func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
+func (s Notifier) NotifyByList(listVK, listTG []int64, group int, notification string) {
 	s.wg.Add(2)
 	go func() {
 		if len(listVK) >= 100 {
@@ -121,7 +121,7 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 			s.wg.Done()
 			return
 		}
-		result := s.SendMessageVKids(listVK, notifyMessage, vkButtons)
+		result := s.SendMessageVKids(listVK, notifyMessage+notification, vkButtons)
 		if !result {
 			log.Printf("Группа %v не оповещена в ВК", group)
 		} else {
@@ -136,7 +136,7 @@ func (s Notifier) NotifyByList(listVK, listTG []int64, group int) {
 			fmt.Println("Пустой список получателей в ТГ")
 		}
 		for _, uId := range listTG {
-			result = s.SendMessageTG(uId, notifyMessage, tgButtons)
+			result = s.SendMessageTG(uId, notifyMessage+notification, tgButtons)
 		}
 		if !result {
 			log.Printf("Группа %v не оповещена в ТГ", group)

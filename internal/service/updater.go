@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
@@ -118,7 +117,10 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 func (s *Updater) UpdateSchedule() {
 	wg := sync.WaitGroup{}
 	log.Printf("Групп к обновлению: %v", len(s.ScheduleSaved))
-	for i, group := range s.ScheduleSaved { // Итерация по устаревшему расписанию
+	for i, group := range s.ScheduleSaved { //
+		if group.group < 1000 {
+			continue
+		} // Итерация по устаревшему расписанию
 		newSchedule := getRequest.GetScheduleByGroup(getRequest.GroupInfo{
 			Id:    group.group,
 			Group: "",
@@ -133,6 +135,7 @@ func (s *Updater) UpdateSchedule() {
 		}
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			//s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
+			notification := getRequest.CompareSchedules(shedUnmarshaled, newSchedule)
 			sql := "UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2"
 			_, err := s.conn.Exec(sql, newShedMarshaled, group.group)
 			if err != nil {
@@ -146,9 +149,8 @@ func (s *Updater) UpdateSchedule() {
 			}()
 			tgList := s.getNotifyList(group.group, "tg")
 			vkList := s.getNotifyList(group.group, "vk")
-			fmt.Println(tgList)
-			fmt.Println(vkList)
-			s.n.NotifyByList(vkList, tgList, group.group)
+			s.n.NotifyByList(vkList, tgList, group.group, notification)
+
 			wg.Wait()
 		}
 		log.Printf("Осталось обновить: %v из %v", i, len(s.ScheduleSaved))
