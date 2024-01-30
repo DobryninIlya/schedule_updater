@@ -1,6 +1,6 @@
 package service
 
-import "github.com/jackc/pgx/pgtype"
+import pgtype "github.com/jackc/pgx/pgtype"
 
 type SavedSchedule struct {
 	group      int

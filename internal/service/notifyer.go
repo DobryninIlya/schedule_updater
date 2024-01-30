@@ -81,6 +81,7 @@ func (s Notifier) SendMessageVKids(uId []int64, message string, buttons string) 
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Printf("Ошибка API. Отправка сообщений: %v", err)
+		return false
 	}
 	_, err = io.ReadAll(resp.Body)
 	if err != nil {
