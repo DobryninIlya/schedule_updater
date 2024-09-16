@@ -5,7 +5,7 @@ import (
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
-	getRequest "main/internal/get_request"
+	"main/internal/app/get_request"
 	"os"
 	"reflect"
 	"sort"
@@ -20,11 +20,12 @@ var newDateUpdate = time.Now().AddDate(0, 0, -deltaDays) //week date ago
 
 type Updater struct {
 	conn          *pgx.Conn
-	groupsParsed  []getRequest.GroupInfo
+	groupsParsed  []get_request.GroupInfo
 	ScheduleSaved []SavedSchedule
 	timeout       time.Duration
 	n             *Notifier
-	ctx           context.Context
+	//store         *graph.Store
+	ctx context.Context
 }
 
 func (s *Updater) getNotifyList(group int, source string) []int64 {
@@ -121,21 +122,21 @@ func (s *Updater) UpdateSchedule() {
 		if group.group < 1000 {
 			continue
 		} // Итерация по устаревшему расписанию
-		newSchedule := getRequest.GetScheduleByGroup(getRequest.GroupInfo{
+		newSchedule := get_request.GetScheduleByGroup(get_request.GroupInfo{
 			Id:    group.group,
 			Group: "",
 		})
 
-		shedUnmarshaled := getRequest.GetUnmarshaledSchedule(group.Schedule)
-		newShedMarshaled := getRequest.GetMarshaledSchedule(newSchedule)
-		nullSchedule := getRequest.Schedule{}
+		shedUnmarshaled := get_request.GetUnmarshaledSchedule(group.Schedule)
+		newShedMarshaled := get_request.GetMarshaledSchedule(newSchedule)
+		nullSchedule := get_request.Schedule{}
 		if reflect.DeepEqual(newSchedule, nullSchedule) {
 			log.Printf("Полученное расписание у группы %v оказалось пустым. Обновление не произошло", group.group)
 			continue
 		}
 		if !reflect.DeepEqual(shedUnmarshaled, newSchedule) { // Если расписание изменилось, обновляем его в базе данных
 			//s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", newShedMarshaled, group.group)
-			notification := getRequest.CompareSchedules(shedUnmarshaled, newSchedule)
+			notification := get_request.CompareSchedules(shedUnmarshaled, newSchedule)
 			sql := "UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2"
 			_, err := s.conn.Exec(sql, newShedMarshaled, group.group)
 			if err != nil {
@@ -157,7 +158,7 @@ func (s *Updater) UpdateSchedule() {
 	}
 }
 
-func (s *Updater) reduceNewScheduleData(list []getRequest.GroupInfo) []getRequest.GroupInfo { // Убираем из полного списка то, что уже содержится в БД
+func (s *Updater) reduceNewScheduleData(list []get_request.GroupInfo) []get_request.GroupInfo { // Убираем из полного списка то, что уже содержится в БД
 	savedDataList := make([]int, s.getAllGroupsCount())
 	rows, err := s.conn.Query("SELECT groupp FROM saved_timetable WHERE date_update > $1 and groupp>1", oldDateUpdate)
 	if err != nil {
@@ -183,10 +184,10 @@ func (s *Updater) reduceNewScheduleData(list []getRequest.GroupInfo) []getReques
 	return list
 }
 
-func (s *Updater) UpdateNewSchedule(data []getRequest.GroupInfo) { // Обновляем то, чего нет в БД (сохраненного ранее, пользователи не использовали больше года)
+func (s *Updater) UpdateNewSchedule(data []get_request.GroupInfo) { // Обновляем то, чего нет в БД (сохраненного ранее, пользователи не использовали больше года)
 	for _, group := range data {
-		schedule := getRequest.GetScheduleByGroup(group)
-		marshaledSchedule := getRequest.GetMarshaledSchedule(schedule) // TODO Начать здесь, сделать вставку расписания в БД + проверка insert/update
+		schedule := get_request.GetScheduleByGroup(group)
+		marshaledSchedule := get_request.GetMarshaledSchedule(schedule) // TODO Начать здесь, сделать вставку расписания в БД + проверка insert/update
 		_, err := s.conn.Exec("INSERT INTO saved_timetable (groupp, date_update, shedule) VALUES ($1, Now(), $2)", group.Id, marshaledSchedule)
 		if err != nil {
 			_, err := s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.Group)
@@ -205,7 +206,7 @@ func (s *Updater) UpdateNewSchedule(data []getRequest.GroupInfo) { // Обнов
 
 func (s *Updater) Run() {
 	defer s.conn.Close()
-	parsedRes := getRequest.GetGroupsList()
+	parsedRes := get_request.GetGroupsList()
 	s.ScheduleSaved = s.CollectGroups()
 	s.UpdateSchedule() // Обновляем группы, которыми пользовались недавно
 	reducedGroupsList := s.reduceNewScheduleData(parsedRes)
@@ -224,5 +225,6 @@ func NewUpdater(ctx context.Context, timeout time.Duration, pgConfig pgx.ConnCon
 		ctx:     ctx,
 		timeout: timeout,
 		n:       NewNotifier(),
+		//store:   graph.NewGraphStore(db),
 	}
 }
