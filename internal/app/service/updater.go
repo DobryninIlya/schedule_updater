@@ -5,10 +5,14 @@ import (
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
+	"main/internal/app/connector"
 	"main/internal/app/get_request"
+	"main/internal/app/model"
+	"main/internal/app/store"
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -24,6 +28,8 @@ type Updater struct {
 	ScheduleSaved []SavedSchedule
 	timeout       time.Duration
 	n             *Notifier
+	apiKey        string
+	connector     connector.ConnectorInterface
 	//store         *graph.Store
 	ctx context.Context
 }
@@ -92,7 +98,7 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 	if count == 0 {
 		return list
 	}
-	rows, err := s.conn.Query("select groupp, date_update, shedule from saved_timetable where date_update > $1 and date_update< $2 and groupp>1 ORDER BY date_update", oldDateUpdate, newDateUpdate)
+	rows, err := s.conn.Query("select groupp, date_update, shedule from saved_timetable where date_update > $1 and date_update< $2 and groupp>1 and groupp < 15000 ORDER BY date_update", oldDateUpdate, newDateUpdate)
 	defer rows.Close()
 	if err != nil {
 		log.Printf("QueryRow failed: %v\n", err)
@@ -122,10 +128,14 @@ func (s *Updater) UpdateSchedule() {
 		if group.group < 1000 {
 			continue
 		} // Итерация по устаревшему расписанию
-		newSchedule := get_request.GetScheduleByGroup(get_request.GroupInfo{
-			Id:    group.group,
-			Group: "",
-		})
+		//newSchedule := get_request.GetScheduleByGroup(get_request.GroupInfo{
+		//	Id:    group.group,
+		//	Group: "",
+		//})
+		newSchedule, err := s.connector.GetScheduleByGroup(strconv.Itoa(group.group))
+		if err != nil {
+			log.Printf("Ошибка получения расписания для группы %v: %v", group.group, err)
+		}
 
 		shedUnmarshaled := get_request.GetUnmarshaledSchedule(group.Schedule)
 		newShedMarshaled := get_request.GetMarshaledSchedule(newSchedule)
@@ -158,9 +168,9 @@ func (s *Updater) UpdateSchedule() {
 	}
 }
 
-func (s *Updater) reduceNewScheduleData(list []get_request.GroupInfo) []get_request.GroupInfo { // Убираем из полного списка то, что уже содержится в БД
+func (s *Updater) reduceNewScheduleData(list []model.Group) []model.Group { // Убираем из полного списка то, что уже содержится в БД
 	savedDataList := make([]int, s.getAllGroupsCount())
-	rows, err := s.conn.Query("SELECT groupp FROM saved_timetable WHERE date_update > $1 and groupp>1", oldDateUpdate)
+	rows, err := s.conn.Query("SELECT groupp FROM saved_timetable WHERE date_update > $1 and groupp>1 and groupp<20000", oldDateUpdate)
 	if err != nil {
 		log.Printf("Ошибка при причесывании списка для внесения в БД: \n %v", err)
 		return nil
@@ -175,7 +185,8 @@ func (s *Updater) reduceNewScheduleData(list []get_request.GroupInfo) []get_requ
 	}
 	for _, groupId := range savedDataList { // Убираем из полного списка групп те, которые есть в БД (в пределах даты)
 		for i := 0; i < len(list); i++ {
-			if groupId == list[i].Id {
+			listGroupIdInt, _ := strconv.Atoi(list[i].Id)
+			if groupId == listGroupIdInt {
 				list = append(list[:i], list[i+1:]...)
 				continue
 			}
@@ -184,29 +195,36 @@ func (s *Updater) reduceNewScheduleData(list []get_request.GroupInfo) []get_requ
 	return list
 }
 
-func (s *Updater) UpdateNewSchedule(data []get_request.GroupInfo) { // Обновляем то, чего нет в БД (сохраненного ранее, пользователи не использовали больше года)
+func (s *Updater) UpdateNewSchedule(data []model.Group) { // Обновляем то, чего нет в БД (сохраненного ранее, пользователи не использовали больше года)
 	for _, group := range data {
-		schedule := get_request.GetScheduleByGroup(group)
-		marshaledSchedule := get_request.GetMarshaledSchedule(schedule) // TODO Начать здесь, сделать вставку расписания в БД + проверка insert/update
-		_, err := s.conn.Exec("INSERT INTO saved_timetable (groupp, date_update, shedule) VALUES ($1, Now(), $2)", group.Id, marshaledSchedule)
+		schedule, err := s.connector.GetScheduleByGroup(group.GroupNum)
 		if err != nil {
-			_, err := s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.Group)
+			log.Printf("Ошибка получения расписания для группы %v: %v", group.GroupNum, err)
+		}
+		marshaledSchedule := get_request.GetMarshaledSchedule(schedule) // TODO Начать здесь, сделать вставку расписания в БД + проверка insert/update
+		_, err = s.conn.Exec("INSERT INTO saved_timetable (groupp, date_update, shedule) VALUES ($1, Now(), $2)", group.Id, marshaledSchedule)
+		if err != nil {
+			_, err := s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.GroupNum)
 			//var isUpdated bool
 			//err := s.conn.QueryRow("SELECT update_saved_timetable($2, 24293);", marshaledSchedule, group.Group).Scan(&isUpdated)
 			if err != nil {
-				log.Printf("Ошибка обновления расписания новых групп: %v, %v", group.Group, group.Id)
+				log.Printf("Ошибка обновления расписания новых групп: %v, %v", group.GroupNum, group.Id)
 				log.Printf(err.Error())
 			}
 		}
 		//s.conn.QueryRow("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.Group)
-		log.Printf("Обновлено расписание группы %v", group.Group)
-		time.Sleep(s.timeout)
+		log.Printf("Обновлено расписание группы %v", group.GroupNum)
+		//time.Sleep(s.timeout)
 	}
 }
 
 func (s *Updater) Run() {
 	defer s.conn.Close()
-	parsedRes := get_request.GetGroupsList()
+	//parsedRes := get_request.GetGroupsList()
+	parsedRes, err := s.connector.GetGroups()
+	if err != nil {
+		log.Printf("Ошибка получения списка групп: %v", err)
+	}
 	s.ScheduleSaved = s.CollectGroups()
 	s.UpdateSchedule() // Обновляем группы, которыми пользовались недавно
 	reducedGroupsList := s.reduceNewScheduleData(parsedRes)
@@ -215,16 +233,18 @@ func (s *Updater) Run() {
 
 }
 
-func NewUpdater(ctx context.Context, timeout time.Duration, pgConfig pgx.ConnConfig) *Updater {
+func NewUpdater(ctx context.Context, timeout time.Duration, pgConfig pgx.ConnConfig, config *store.Config) *Updater {
 	conn, err := pgx.Connect(pgConfig)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 	return &Updater{
-		conn:    conn,
-		ctx:     ctx,
-		timeout: timeout,
-		n:       NewNotifier(),
+		conn:      conn,
+		ctx:       ctx,
+		timeout:   timeout,
+		n:         NewNotifier(),
+		apiKey:    config.ServiceApiKey,
+		connector: connector.NewConnector(config.DataGateway, config.Debug, config.ServiceApiKey),
 		//store:   graph.NewGraphStore(db),
 	}
 }

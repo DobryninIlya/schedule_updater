@@ -1,0 +1,3 @@
+service_api_key = "8Bz6bWBPuA1f7ACjxo3d3flL30VdWZJL"
+data_gateway = "https://schedule-bot.kai.ru/api/schedule_public"
+debug = true

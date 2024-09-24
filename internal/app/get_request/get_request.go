@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"main/internal/app/model"
 	"net/http"
 	"strconv"
 )
@@ -56,20 +57,20 @@ func GetScheduleByGroup(group GroupInfo) Schedule {
 
 }
 
-func GetUnmarshaledSchedule(data []byte) Schedule {
-	var result Schedule
+func GetUnmarshaledSchedule(data []byte) []model.GroupSchedule {
+	var result []model.GroupSchedule
 	err := json.Unmarshal(data, &result)
 	if data == nil {
-		return Schedule{}
+		return nil
 	}
 	if err != nil {
 		log.Printf("Ошибка анмаршалинга #{err}")
-		return Schedule{}
+		return nil
 	}
 	return result
 }
 
-func GetMarshaledSchedule(data Schedule) []byte {
+func GetMarshaledSchedule(data []model.GroupSchedule) []byte {
 	result, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Ошибка маршалинга #{err}")
