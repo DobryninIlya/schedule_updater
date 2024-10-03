@@ -215,7 +215,7 @@ func (s *Updater) UpdateNewSchedule(data []model.Group) { // Обновляем 
 		marshaledSchedule := get_request.GetMarshaledSchedule(schedule) // TODO Начать здесь, сделать вставку расписания в БД + проверка insert/update
 		_, err = s.conn.Exec("INSERT INTO saved_timetable (groupp, date_update, shedule) VALUES ($1, Now(), $2)", group.Id, marshaledSchedule)
 		if err != nil {
-			_, err := s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.GroupNum)
+			_, err = s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = $2", marshaledSchedule, group.GroupNum)
 			//var isUpdated bool
 			//err := s.conn.QueryRow("SELECT update_saved_timetable($2, 24293);", marshaledSchedule, group.Group).Scan(&isUpdated)
 			if err != nil {
