@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/jackc/pgx"
 	"github.com/jackc/pgx/pgtype"
 	"log"
@@ -121,6 +122,16 @@ func (s *Updater) CollectGroups() []SavedSchedule {
 	return sortedList
 }
 
+func (s *Updater) UpdateSavedGroups(groups []model.Group) error {
+	// Приведение слайса из групп к формату json
+	groupsJson, err := json.Marshal(groups)
+	_, err = s.conn.Exec("UPDATE saved_timetable SET shedule = $1, date_update=Now() WHERE groupp = 1", groupsJson)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Updater) UpdateSchedule() {
 	wg := sync.WaitGroup{}
 	log.Printf("Групп к обновлению: %v", len(s.ScheduleSaved))
@@ -226,6 +237,10 @@ func (s *Updater) Run() {
 		log.Printf("Ошибка получения списка групп: %v", err)
 	}
 	s.ScheduleSaved = s.CollectGroups()
+	err = s.UpdateSavedGroups(parsedRes) // Обновляем группы
+	if err != nil {
+		log.Printf("Ошибка обновления групп: %v", err)
+	}
 	s.UpdateSchedule() // Обновляем группы, которыми пользовались недавно
 	reducedGroupsList := s.reduceNewScheduleData(parsedRes)
 	s.UpdateNewSchedule(reducedGroupsList) //Добавляем в БД инфо о группах, которые еще не пользовались
